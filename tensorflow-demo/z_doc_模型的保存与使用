@@ -1,0 +1,86 @@
+
+https://blog.csdn.net/thriving_fcl/article/details/75213361
+https://blog.csdn.net/c2a2o2/article/details/72778628
+
+# 保存模型时，占位符的值不会保存，只能通过占位符名称获取占位符用来传数据
+
+********************************************************************
+如果 train 和 infer 写在一个程序中，可以直接加载checkpoint目录即可（因为graph已经在程序中定义）
+    saver.restore(sess,'net/my_net.ckpt')
+********************************************************************
+使用Saver
+1.------------------------------
+    # 模型保存
+        目录结构入下：
+        checkpoint      文本，记录保存最新的checkpoint文件以及checkpoint文件列表
+        MyModel.data-00000-of-00001     二进制文件，保存了所有的weights、biases、gradients等变量
+        MyModel.index       二进制文件，保存了所有的weights、biases、gradients等变量
+        MyModel.meta        保存图文件
+    tf.train.Saver().save(sess,path,global_step=1000,,write_meta_graph=False))
+        # global_step 表示当迭代1000次再保存模型   MyModel-1000.meta
+        # write_meta_graph=False 表示不保存图
+    tf.train.Saver(max_to_keep=5, keep_checkpoint_every_n_hours=2)
+        # 每两个小时保存一次，最多保存五个
+    # 导入模型
+        1.构造网络图
+        2.加载参数
+            with tf.Session() as sess:
+                new_saver = tf.train.import_meta_graph('./checkpoint_dir/MyModel-1000.meta')
+                new_saver.restore(sess, tf.train.latest_checkpoint('./checkpoint_dir'))
+    # 使用模型
+        graph = tf.get_default_graph()
+        w1 = graph.get_tensor_by_name("w1:0")       # w1 是变量名
+        w2 = graph.get_tensor_by_name("w2:0")
+        feed_dict ={w1:13.0,w2:17.0}
+        op_to_restore = graph.get_tensor_by_name("op_to_restore:0") # op_to_restore op变量名
+        print(sess.run(op_to_restore,feed_dict))
+
+2.-----------------------------------
+    如果需要保存别的数据：
+        tf.add_to_collection('pred_network', y)
+    当启动图之后：
+        y = tf.get_collection('pred_network')
+    导入模型时也可以通过：
+        model_file=tf.train.latest_checkpoint('ckpt/')  # 来自动获取最后一次保存的模型
+        saver.restore(sess,model_file)
+
+这种方法不方便的在于，在使用模型的时候，必须把模型的结构重新定义一遍，然后载入对应名字的变量的值。
+但是很多时候我们都更希望能够读取一个文件然后就直接使用模型，而不是还要把模型重新定义一遍。
+
+*****************************************************************************
+使用 graph_util
+保存为 pb 文件
+    1. 生成pd文件
+        from tensorflow.python.framework import graph_util
+        # 需要指定输出node的name，可以是多个
+        output = graph_util.convert_variables_to_constants(sess, sess.graph_def, ["predict"])
+        # 将计算图写入到模型文件中
+        with tf.gfile.FastGFile("model.pd", mode="wb") as model_f:
+            model_f.write(output.SerializeToString())
+    2. 加载pd文件
+        with tf.gfile.FastGFile("./Test/model.pb", mode='rb') as model_f:
+            graph_def = tf.GraphDef()
+            graph_def.ParseFromString(model_f.read())
+
+         c = sess.graph.get_tensor_by_name("add2:0")
+         c2 = sess.graph.get_tensor_by_name("add3:0")
+********************************************************************************
+使用 save_model
+1.保存
+    builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
+    builder.add_meta_graph_and_variables(sess, ['tag_string'])
+    builder.save()
+2.载入
+    meta_graph_def = tf.saved_model.loader.load(sess, ['tag_string'], saved_model_dir)
+    x = sess.graph.get_tensor_by_name('input_x:0')
+    y = sess.graph.get_tensor_by_name('predict_y:0')
+3.如果想不知道tensorname的情况下也能使用
+    那就需要给add_meta_graph_and_variables方法传入第三个参数，signature_def_map
+    SignatureDef 定义了一些协议，对我们所需的信息进行封装，我们根据这套协议来获取信息，从而实现创建与使用模型的解耦。
+    将输入输出tensor的信息都进行了封装，并且给他们一个自定义的别名，所以在构建模型的阶段，可以随便给tensor命名，
+    只要在保存训练好的模型的时候，在SignatureDef中给出统一的别名即可。
+
+
+
+
+

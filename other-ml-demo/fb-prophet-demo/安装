@@ -1,0 +1,30 @@
+安装：
+	环境：centos7.4
+
+
+yum install gcc gcc-c++ libevent-devel python-devel python3-tools epel-release libffi-devel python3-devel openssl-devel -y
+yum group install 'development tools' -y
+
+pip3 install gevent -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip3 install pystan==2.17.1.0  -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip3 install fbprophet -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip3 install plotly -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+测试pystan：
+import pystan
+model_code = 'parameters {real y;} model {y ~ normal(0,1);}'
+model = pystan.StanModel(model_code=model_code)  # this will take a minute
+y = model.sampling(n_jobs=1).extract()['y']
+y.mean()  # should be close to 0
+
+
+note: yum 中的某一步会清除所有已安装的python包
+    经过测试，可以不需要安装 python-devel python3-tools python3-devel ，原来的代码包就不会被删除
+    而且也不会影响prophet安装
+    2. pystan版本，经测试2.17.1可用
+
+windows可以直接试此命令
+** conda install -c conda-forge fbprophet **
+
+# 理论学习
+参考：https://blog.csdn.net/anshuai_aw1/article/details/83412058

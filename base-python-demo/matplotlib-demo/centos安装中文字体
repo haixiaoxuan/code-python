@@ -1,0 +1,19 @@
+# 获取 配置文件 matplotlibrc 所在路径
+import matplotlib
+matplotlib.matplotlib_fname() # /usr/local/lib64/python3.6/site-packages/matplotlib/mpl-data
+
+
+# 修改 matplotlibrc，打开注释，并修改，添加 SimHei
+font.family         : sans-serif
+font.sans-serif     : simhei, SimHei, DejaVu Sans, Bitstream Vera Sans, Computer Modern Sans Serif, Lucida Grande, Verdana, Geneva, Lucid, Arial, Helvetica, Avant Garde, sans-serif
+axes.unicode_minus  : False    ## use unicode for the minus symbol
+
+
+# 将simhei.ttf 文件 放到如下目录
+mpl-data/fonts/ttf
+
+
+# 删除 matplotlib 缓存
+# rm -rf /home/etluser/.config/matplotlib
+rm -rf /home/etluser/.cache/matplotlib
+

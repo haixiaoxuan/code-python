@@ -1,0 +1,296 @@
+content
+    1. 管道
+    2. 网格搜索
+    3. 特征提取
+    4. 特征预处理
+    5. 模型选择(交叉验证)
+    6. 模型调参
+    7. 模型评估
+    8. DataFrameMapper实现特征工程
+
+
+
+1. 管道：（除了最后一个，都必须是transform类型的，提供了transform方法）
+
+        from sklearn.pipeline import Pipeline
+        from sklearn.svm import SVC
+        from sklearn.decomposition import PCA
+        estimators = [('reduce_dim', PCA()), ('clf', SVC())]
+        pipe = Pipeline(estimators)
+
+        from sklearn.pipeline import make_pipeline
+        make_pipeline 可以实现自动构建
+        make_pipeline(PCA(), SVC())
+
+        # 拿到stage
+        pipe.named_steps['reduce_dim']
+        pipe.steps[0]
+
+        # 传参
+        pipe.set_params(clf__C=10)  # 将clf的参数C设为 10
+
+        # FeatureUnion
+        from sklearn.pipeline import FeatureUnion
+        from sklearn.decomposition import PCA
+        from sklearn.decomposition import KernelPCA
+        estimators = [('linear_pca', PCA()), ('kernel_pca', KernelPCA())]
+        combined = FeatureUnion(estimators)
+        combined.set_params(kernel_pca=None) # 可以设置 stage 为 None
+
+
+2. 网格搜索
+        from sklearn.model_selection import GridSearchCV
+        params = dict(reduce_dim__n_components=[2, 5, 10],clf__C=[0.1, 10, 100])
+        grid_search = GridSearchCV(pipe, param_grid=params)
+        可以指定 n_job 和 cv 还有评估指标 scoring
+
+        #stage 也可以替换
+        params = dict(clf=[SVC(), LogisticRegression()])
+
+        # 如果其中一个失败，则可能导致整个搜索失败，可以设置 error_score = 0
+
+
+3. 特征提取
+        # DictVectorizer 字典类型特征转换为 vectorizre 类别，默认使用 scipy中的 sparse
+        measurements = [
+        ...     {'city': 'Dubai', 'temperature': 33.},
+        ...     {'city': 'London', 'temperature': 12.},
+        ..      {'city': 'San Fransisco', 'temperature': 18.},
+        ... ]
+
+        from sklearn.feature_extraction import DictVectorizer
+        vec = DictVectorizer(sparse=True)
+
+        vec.fit_transform(measurements).toarray()
+        array([[  1.,   0.,   0.,  33.],
+               [  0.,   1.,   0.,  12.],
+               [  0.,   0.,   1.,  18.]])
+
+        vec.get_feature_names()
+        ['city=Dubai', 'city=London', 'city=San Fransisco', 'temperature']
+
+        # 特征散列
+        TODO
+
+4. 特征预处理
+
+        # 特征缩放（标准正态分布）
+        from sklearn import preprocessing
+        X_scaled = preprocessing.scale(X)   # X_scaled.mean(axis=0) = [0...]  X_scaled.std(axis=0) = [1..]
+
+        scaler = preprocessing.StandardScaler() # 相对于 scale 可以用于新数据
+
+        # 特征缩放
+        preprocessing.MinMaxScaler()        # [0, 1]
+        preprocessing.MaxAbsScaler()        # [-1, 1]
+
+        # 规范化
+        preprocessing.normalize(X, norm='l2')
+        preprocessing.Normalizer()
+
+        # 0 or 1
+        preprocessing.Binarizer(threshold=1.1)  # 可以调整阈值
+
+        # one-hot
+        preprocessing.OneHotEncoder()
+
+        # 缺失值处理
+        from sklearn.preprocessing import Imputer
+        imp = Imputer(missing_values='NaN', strategy='mean', axis=0)
+
+        # 多项式特征转换
+        from sklearn.preprocessing import PolynomialFeatures
+        poly = PolynomialFeatures(2)
+
+        # 自定义transform
+        from sklearn.preprocessing import FunctionTransformer
+        transformer = FunctionTransformer(np.log1p)
+
+        # 降维
+        from sklearn.decomposition import PCA
+
+        # 特征选择
+        from sklearn.feature_selection import SelectKBest,chi2
+        TODO
+        # 随机投影
+        TODO
+
+        # 对标签的处理(即 one-hot)
+        from sklearn import preprocessing
+        lb = preprocessing.LabelBinarizer()     # 每个样本一个标签
+        lb = preprocessing.MultiLabelBinarizer()    # 每个样本多个标签
+        # [0,n-class-1] 将标签编码为 0- n-class-1,有利于高效计算
+        le = preprocessing.LabelEncoder()
+        le.fit([1, 2, 2, 6])
+        le.classes_   # array([1, 2, 6])
+        le.transform([1, 1, 2, 6])      # array([0, 0, 1, 2])
+        le.inverse_transform([0, 0, 1, 2])      # 还原 array([1, 1, 2, 6])
+
+5. 模型选择(交叉验证)
+
+
+        # 数据集拆分
+        from sklearn.model_selection import train_test_split
+        train_test_split(x, y, test_size=0.4, random_state=0)
+
+        # k折交叉验证
+        from sklearn.model_selection import KFold
+        kf = KFold(n_splits=2)
+        for train, test in kf.split(X):
+            pass
+
+        # 交叉验证度量
+        from sklearn.model_selection import cross_val_score
+        clf = svm.SVC(kernel='linear', C=1)
+        scores = cross_val_score(clf, x, y, cv=5,  scoring='f1_macro')   # 5 折交叉验证,评分分数为 f1_macro
+
+        # 改变交叉验证迭代器
+        from sklearn.model_selection import ShuffleSplit
+        cv = ShuffleSplit(n_splits=3, test_size=0.3, random_state=0)
+        cross_val_score(clf, x, y, cv=cv)
+
+        # 交叉验证策略
+        from sklearn.model_selection import KFold       # 常见的
+        from sklearn.model_selection import LeaveOneOut # 每个学习集是通过去除一个样本之后的剩下所有样本创建的
+        from sklearn.model_selection import LeavePOut   # 每个学习集是通过去除n个样本之后的剩下所有样本创建的
+        from sklearn.model_selection import ShuffleSplit
+
+        # 分层抽样
+        from sklearn.model_selection import StratifiedKFold  # 根据正负样本所占比例进行抽取
+        from sklearn.model_selection import StratifiedShuffleSplit
+
+        from sklearn.model_selection import GroupKFold
+        from sklearn.model_selection import LeaveOneGroupOut
+        from sklearn.model_selection import LeavePGroupsOut
+        from sklearn.model_selection import GroupShuffleSplit
+        # 时间序列分割
+        from sklearn.model_selection import TimeSeriesSplit
+
+6. 模型调参
+
+        # 拿到所有的参数
+        estimator.get_params()
+
+        # 随机搜索
+        from sklearn.model_selection import RandomizedSearchCV
+        # scipy.stats 中的分布
+        {   'C': scipy.stats.expon(scale=100),
+            'gamma': scipy.stats.expon(scale=.1),
+            'kernel': ['rbf'],
+            'class_weight':['balanced', None]
+        }
+
+        # 针对模型的交叉验证
+        linear_model.LassoCV ....
+
+7. 模型评估
+
+        from sklearn.metrics import confusion_matrix
+        计算混淆矩阵
+
+        # R^2 计算
+        clf = svm.SVC(C=1).fit(x_train, y_train)
+        clf.score(x_test, y_test)
+
+        # 准确率计算
+        from sklearn import metrics
+        metrics.accuracy_score(y, predicted)    # 用于分类
+        metrics.r2_score()                      # 用于回归
+
+        # 交叉验证可以用来指定评分标准
+
+        ==========================================================
+        分类
+        ‘accuracy’	            metrics.accuracy_score
+        ‘average_precision’	    metrics.average_precision_score
+        ‘f1’	                metrics.f1_score	用于二进制目标
+        ‘f1_micro’	            metrics.f1_score	微平均
+        ‘f1_macro’	            metrics.f1_score	宏平均
+        ‘f1_weighted’	        metrics.f1_score	加权平均
+        ‘f1_samples’	        metrics.f1_score	通过多分类样本
+        ‘neg_log_loss’	        metrics.log_loss	需要predict_proba支持
+        ‘precision’ etc.	    metrics.precision_score	后缀适用于'f1'
+        ‘recall’ etc.	        metrics.recall_score	后缀适用于'f1'
+        ‘roc_auc’	            metrics.roc_auc_score
+
+        metrics.fbeta_score
+        metrics.precision_recall_fscore_support     # 拿到三个指标
+        metrics.classification_report   # 分类报告
+        ============================================================
+        聚类
+        ‘adjusted_rand_score’	metrics.adjusted_rand_score
+        metrics.homogeneity_score       # 同一性
+        metrics.completeness_score      # 完整性
+        ============================================================
+        回归
+        ‘neg_mean_absolute_error’	metrics.mean_absolute_error
+        ‘neg_mean_squared_error’	metrics.mean_squared_error
+        ‘neg_median_absolute_error’	metrics.median_absolute_error
+        ‘r2’	                    metrics.r2_score
+        =============================================================
+
+        # 验证曲线（横轴为某个超参数的一系列值，由此来看不同参数设置下模型的准确率）
+        from sklearn.model_selection import validation_curve
+        train_scores, valid_scores =
+                    validation_curve(Ridge(), X, y, "alpha",np.logspace(-7, 3, 3))
+
+        # 学习曲线（参数固定，训练集改变）
+        train_sizes, train_scores, valid_scores =
+                learning_curve(SVC(kernel='linear'), X, y,
+                            train_sizes=[50, 80, 110], cv=5)
+
+8. DataFrameMapper实现特征工程
+
+    a. DataFrameMapper 继承自 sklearn 的 BaseEstimator 和 TransformerMixin ，
+       所以 DataFrameMapper 可以看做 sklearn 的 TransformerMixin 类，
+       跟 sklearn 中的其他 Transformer 一样，比如可以作为 Pipeline 的输入参数
+    b. DataFrameMapper 内部机制是先将指定的 DataFrame 的列转换成
+       ndarray 类型，再输入到 sklearn 的相应 transformer中
+    c. DataFrameMapper 接受的变换类型是 sklearn 的 transformer 类，
+       因而除了 sklearn 中常见的变换 （标准化、正规化、二值化等等）
+       还可以用 sklearn 的 FunctionTransformer 来进行自定义操作
+
+
+        # 单列变换
+        mapper = DataFrameMapper([
+            ("label", LabelBinarizer()),
+            ("col1", MinMaxScaler()),
+            (["col2"], OneHotEncoder())
+        ])
+        mapper.fit_transform(testdata)
+
+        # 单列级联变换
+        mapper = DataFrameMapper([
+            (["col2"], [MinMaxScaler(), StandardScaler()])
+        ])
+
+        # 多列用同样的变换
+        mapper = DataFrameMapper([
+            (["col1", "col2"], MinMaxScaler())
+        ])
+
+        # 多列级联变换
+        mapper = DataFrameMapper([
+            (["col1", "col2"], [MinMaxScaler(), PCA()])
+        ])
+
+        DataFrameMapper提供sparse参数来设定输出稀疏与否,默认是False
+        对于未指定的列，我们可能也需要做相应处理，提供default参数用于处理这类列：
+                False: 全部丢弃（默认）
+                None: 原封不动地保留
+                other transformer: 将 transformer 作用到所有剩余列上
+
+        # 自定义列转换
+        mapper = DataFrameMapper([
+            (["col1", "col2"], FunctionTransformer(np.log1p))
+        ])
+
+
+
+
+
+
+
+
+
+

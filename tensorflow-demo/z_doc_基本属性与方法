@@ -1,0 +1,50 @@
+
+tf.one_hot()
+
+tf.multiply()   两个矩阵中对应元素各自相乘
+tf.matmul()     将矩阵a乘以矩阵b，生成a * b。
+
+tf.random_normal([1,10])    # 根据高斯分布生成(1,10)的随机数组
+tf.zeros([1,1])             # 生成 (1,1)的零向量
+
+tf.reduce_mean     # 取均值
+
+tf.argmax([],1)     # 矩阵中最大值所在的位置，axis=1
+
+tf.equal(a,b)       # 比较ab矩阵，返回布尔类型的矩阵
+
+tf.cast([], tf.float32)    # 类型转换
+
+tf.assign(lr,a )   # 更新 lr 的值为 a
+
+tf.nn.xw_plus_b        # 等同于 tf.matmul(x,weight)+bias
+
+tf.round()         # 四舍五入
+
+tf.clip_by_value(y, 0.1, 1))    # 将小于 0.1 的设为 0.1 ，将大于 1 的设为1
+
+tf.assign(a, c)    # 将c的值赋予a，并将a值返回
+
+tf.random_uniform(shape,min,max)       # 生成均匀分布
+
+# 激活函数
+tf.nn.tanh()
+tf.nn.softmax()
+
+
+# 优化器
+tf.train.GradientDescentOptimizer(0.1)
+tf.train.AdamOptimizer(0.001)
+tf.train.AdagradOptimizer(0.01)
+
+# 损失函数
+tf.reduce_mean(tf.square(predict-y))    # 二次代价函数
+tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y,logits=predict))    # 交叉熵代价函数
+
+tensorboard
+tf.name_scope()     # 定义命名空间
+tf.summary.FileWriter("logs/",sess.graph)       # 写入文件
+cmd> tensorboard --logdir=.../logs/     # 启动tensorboard
+
+
+

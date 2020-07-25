@@ -1,0 +1,14 @@
+# 打印出所有正在活跃状态的 DAGs
+airflow list_dags
+
+# 打印出 'tutorial' DAG 中所有的任务
+airflow list_tasks dag_name
+
+# 打印出 'tutorial' DAG 的任务层次结构
+airflow list_tasks dag_name --tree
+
+
+# 测试
+# airflow test命令在本地运行任务实例时，会将其日志输出到 stdout（在屏幕上），
+# 不会受依赖项影响，并且不向数据库传达状态（运行，成功，失败，...）。它只允许测试单个任务实例。
+airflow test dag_id task_id 2015-06-01

@@ -1,0 +1,2 @@
+model_checkpoint_path: "E:\\project\\tensorflow-test\\tensorflow-demo\\model\\test-model"
+all_model_checkpoint_paths: "E:\\project\\tensorflow-test\\tensorflow-demo\\model\\test-model"

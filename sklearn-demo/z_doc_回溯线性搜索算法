@@ -1,0 +1,22 @@
+
+https://lumingdong.cn/setting-strategy-of-gradient-descent-learning-rate.html
+基于 Armijo 准则的线性回溯搜索算法主要目的是通过计算的方式得到合适的学习率
+
+    基本思想：
+        将学习率 α 看作是未知量，因当前点 xk、当前搜索方向 dk 都是已知的
+        h(α) 的导数为 0 时，α 即为最优学习率
+        因为求导复杂多变，只能通过搜索逼近的方式来确定最优的 α
+
+    1. 二分线性搜索（Bisection Line Search）
+
+    2. 回溯线性搜索 (Backing Line Search)
+
+    3. 二次插值法 ( 是回溯线性搜索的继续优化 )
+        思想是通过多项式插值法拟合简单函数，然后根据该简单函数估计原函数的极值点
+
+
+
+
+
+
+

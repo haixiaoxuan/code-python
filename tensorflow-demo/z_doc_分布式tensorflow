@@ -1,0 +1,26 @@
+
+job                work | ps
+task           server...| ...server
+server     master worker|worker master ...
+
+                      client
+
+
+TensorFlow提供了一些工具函数,根据 worker|ps ,赋予task不同的任务，ps存储变量
+
+tf.train.ClusterSpec    描述集群所有任务
+tf.train.Server         确定本地任务的工作名称和任务ID
+
+tf.train.Supervisor
+tf.train.SessionManager
+
+tf.train.replica_device_setter
+# 函数会自动将所有的参数分配到参数服务器上，而计算分配到当前的计算服务器上 Between-graph replication
+
+tf.train.MonitoredTrainingSession
+tf.train.MonitoredSession
+tf.train.SingularMonitoredSession
+tf.train.Scaffold
+tf.train.SessionCreator
+tf.train.ChiefSessionCreator
+tf.train.WorkerSessionCreator

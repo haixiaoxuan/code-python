@@ -1,0 +1,15 @@
+
+
+TFCluster 启动步骤：
+    1. sparkDriver 启动，并启动一个 Server 进行监听，等待注册
+    2. Driver 使用 foreachPartition(TFSparkNode.run())    在executor中启动 TF
+    3. executor 中 首先会启动一个TFManager创建一些队列，存储info
+    4. executor 中 启动 Client 在 Server 中进行注册 ，使用 子进程运行 local tensorflow，在获取数据处 阻塞
+    5. Server收到所有的注册消息，然后返回 Cluster
+
+TFCluster 训练步骤：
+    1. unionRDD.foreachPartition()
+    2. 在 executor 中将 partition数据 put 进 queue
+    3. 阻塞解除，TF 子进程从队列中 get 数据进行训练
+
+
