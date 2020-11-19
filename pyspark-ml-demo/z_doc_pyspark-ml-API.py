@@ -48,6 +48,7 @@ from pyspark.ml.feature import Imputer              # 缺值补充估计器，�
 
 from pyspark.ml.feature import CountVectorizer      # 构建单词向量，用来处理文本数据
 from pyspark.ml.feature import PolynomialExpansion  # 多项式扩展
+from pyspark.ml.feature import QuantileDiscretizer  # 将特征从大到小排序之后进行分桶
 
 
 # linalg
