@@ -1,8 +1,8 @@
 import tensorflow_datasets as tfds
 import tensorflow as tf
+
 tfds.disable_progress_bar()
 import os
-
 
 """
     这是在一台计算机上的多 GPU（单机多卡）进行同时训练的图形内复制（in-graph replication）。
@@ -18,6 +18,9 @@ import os
     如果需要禁用GPU
     在代码中设置：os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     
+    note:
+        自定义 call_back 中的方法(printLR, 每个epochs 结束后打印 学习率)
+    
     参考：https://tensorflow.google.cn/tutorials/distribute/custom_training?hl=zh-cn
 """
 
@@ -25,18 +28,15 @@ import os
 datasets, info = tfds.load(name='mnist', with_info=True, as_supervised=True)
 mnist_train, mnist_test = datasets['train'], datasets['test']
 
-
 # 自定义分配策略
 strategy = tf.distribute.MirroredStrategy()
 print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
-
 
 # 设置输入管道
 # 通常来说，使用适合 GPU 内存的最大批量大小（batch size），并相应地调整学习速率。
 num_train_examples = info.splits['train'].num_examples
 num_test_examples = info.splits['test'].num_examples
 print("训练数据集大小: {0} 测试数据集大小: {1}".format(num_train_examples, num_test_examples))
-
 
 BUFFER_SIZE = 10000
 BATCH_SIZE_PER_REPLICA = 64
@@ -53,7 +53,6 @@ def scale(image, label):
 train_dataset = mnist_train.map(scale).cache().shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 eval_dataset = mnist_test.map(scale).batch(BATCH_SIZE)
 
-
 # 生成模型（在strategy.scope上下文中）
 with strategy.scope():
     model = tf.keras.Sequential([
@@ -64,9 +63,8 @@ with strategy.scope():
         tf.keras.layers.Dense(10, activation='softmax')
     ])
     model.compile(loss='sparse_categorical_crossentropy',
-                optimizer=tf.keras.optimizers.Adam(),
-                metrics=['accuracy'])
-
+                  optimizer=tf.keras.optimizers.Adam(),
+                  metrics=['accuracy'])
 
 # 定义检查点（checkpoint）目录以存储检查点（checkpoints）
 checkpoint_dir = './training_checkpoints'
@@ -76,18 +74,18 @@ checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
 # 衰减学习率的函数。 您可以定义所需的任何衰减函数。
 def decay(epoch):
-  if epoch < 3:
-    return 1e-3
-  elif epoch >= 3 and epoch < 7:
-    return 1e-4
-  else:
-    return 1e-5
+    if epoch < 3:
+        return 1e-3
+    elif epoch >= 3 and epoch < 7:
+        return 1e-4
+    else:
+        return 1e-5
 
 
 # 在每个 epoch 结束时打印LR的回调（callbacks）。
 class PrintLR(tf.keras.callbacks.Callback):
-  def on_epoch_end(self, epoch, logs=None):
-    print('\nLearning rate for epoch {} is {}'.format(epoch + 1, model.optimizer.lr.numpy()))
+    def on_epoch_end(self, epoch, logs=None):
+        print('\nLearning rate for epoch {} is {}'.format(epoch + 1, model.optimizer.lr.numpy()))
 
 
 callbacks = [
@@ -97,7 +95,6 @@ callbacks = [
     PrintLR()
 ]
 
-
 # 训练和评估
 model.fit(train_dataset, epochs=12, callbacks=callbacks)
 
@@ -106,13 +103,11 @@ model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
 eval_loss, eval_acc = model.evaluate(eval_dataset)
 print('Eval loss: {}, Eval Accuracy: {}'.format(eval_loss, eval_acc))
 
-
 # 如要使用tensorboard > tensorboard --logdir=path/to/log-directory
 
 # 导出模型 将图形和变量导出为与平台无关的 SavedModel 格式。 保存模型后，可以在有或没有 scope 的情况下加载模型。
 path = 'saved_model/'
 tf.keras.experimental.export_saved_model(model, path)
-
 
 # 在无需 strategy.scope 加载模型
 unreplicated_model = tf.keras.experimental.load_from_saved_model(path)
@@ -123,13 +118,12 @@ unreplicated_model.compile(
 eval_loss, eval_acc = unreplicated_model.evaluate(eval_dataset)
 print('Eval loss: {}, Eval Accuracy: {}'.format(eval_loss, eval_acc))
 
-
 # 在含 strategy.scope 加载模型。
 with strategy.scope():
     replicated_model = tf.keras.experimental.load_from_saved_model(path)
     replicated_model.compile(loss='sparse_categorical_crossentropy',
-                           optimizer=tf.keras.optimizers.Adam(),
-                           metrics=['accuracy'])
+                             optimizer=tf.keras.optimizers.Adam(),
+                             metrics=['accuracy'])
 
     eval_loss, eval_acc = replicated_model.evaluate(eval_dataset)
     print('Eval loss: {}, Eval Accuracy: {}'.format(eval_loss, eval_acc))

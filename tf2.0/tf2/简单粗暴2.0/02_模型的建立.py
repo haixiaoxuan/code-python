@@ -3,10 +3,12 @@ import numpy as np
 
 """
         模型的构建： tf.keras.Model 和 tf.keras.layers
+        
         模型的损失函数： tf.keras.losses        
                         sparse_categorical_crossentropy     label没有被one-hot编码时使用
                         categorical_crossentropy    使用时传入被one-hot编码的label -> tf.one_hot(y, depth=tf.shape(y_pred)[-1])
         模型的优化器： tf.keras.optimizer      Adam|
+        
         模型的评估： tf.keras.metrics
                         SparseCategoricalAccuracy 
                         使用：

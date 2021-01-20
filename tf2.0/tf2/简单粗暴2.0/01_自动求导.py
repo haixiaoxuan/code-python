@@ -31,9 +31,12 @@ w_grad, b_grad = tape.gradient(L, [w, b])        # 计算L(w, b)关于w, b的偏
 print([L.numpy(), w_grad.numpy(), b_grad.numpy()])
 
 
+# ---------------------------------- 使用 numpy 实现线性回归 -------------------------------------------------------------
 # 线性回归示例
 X_raw = np.array([2013, 2014, 2015, 2016, 2017], dtype=np.float32)
 y_raw = np.array([12000, 14000, 15000, 16500, 17500], dtype=np.float32)
+
+# 对原始数据进行归一化
 X = (X_raw - X_raw.min()) / (X_raw.max() - X_raw.min())
 y = (y_raw - y_raw.min()) / (y_raw.max() - y_raw.min())
 
@@ -44,12 +47,14 @@ learning_rate = 1e-3
 for e in range(num_epoch):
     # 手动计算损失函数关于自变量（模型参数）的梯度
     y_pred = a * X + b
+    # 求导 (损失函数为 0.5*(y_pred - y)**2)
     grad_a, grad_b = (y_pred - y).dot(X), (y_pred - y).sum()
     # 更新参数
     a, b = a - learning_rate * grad_a, b - learning_rate * grad_b
 print(a, b)
 
 
+# ---------------------------------- 使用 tf 实现线性回归 ---------------------------------------------------------------
 # 使用tensorflow做梯度下降
 X = tf.constant(X)
 y = tf.constant(y)
