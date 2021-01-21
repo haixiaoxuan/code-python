@@ -52,9 +52,14 @@ for item in dataset:
 dataset = dataset.repeat(3).batch(7)        # BatchDataset
 for item in dataset:
     print(item)
+# tf.Tensor([0 1 2 3 4 5 6], shape=(7,), dtype=int64)
+# tf.Tensor([7 8 9 0 1 2 3], shape=(7,), dtype=int64)
+# tf.Tensor([4 5 6 7 8 9 0], shape=(7,), dtype=int64)
+# tf.Tensor([1 2 3 4 5 6 7], shape=(7,), dtype=int64)
+# tf.Tensor([8 9], shape=(2,), dtype=int64)
 
 
-# 对BatchDataset 每个元素进行处理
+# 对BatchDataset 中每个元素进行处理，每个元素就相当于是一个batch
 # 和map的区别相当于是将多个dataset合成了一个，map是一对一
 dataset2 = dataset.interleave(
     lambda v: tf.data.Dataset.from_tensor_slices(v),
@@ -63,6 +68,36 @@ dataset2 = dataset.interleave(
 )
 for item in dataset2:
     print(item)
+# tf.Tensor(0, shape=(), dtype=int64)
+# tf.Tensor(1, shape=(), dtype=int64)
+# tf.Tensor(2, shape=(), dtype=int64)
+# tf.Tensor(3, shape=(), dtype=int64)
+# tf.Tensor(4, shape=(), dtype=int64)
+# tf.Tensor(7, shape=(), dtype=int64)
+# tf.Tensor(8, shape=(), dtype=int64)
+# tf.Tensor(9, shape=(), dtype=int64)
+# tf.Tensor(0, shape=(), dtype=int64)
+# tf.Tensor(1, shape=(), dtype=int64)
+# tf.Tensor(4, shape=(), dtype=int64)
+# tf.Tensor(5, shape=(), dtype=int64)
+# tf.Tensor(6, shape=(), dtype=int64)
+# tf.Tensor(7, shape=(), dtype=int64)
+# tf.Tensor(8, shape=(), dtype=int64)
+# tf.Tensor(1, shape=(), dtype=int64)
+# tf.Tensor(2, shape=(), dtype=int64)
+# tf.Tensor(3, shape=(), dtype=int64)
+# tf.Tensor(4, shape=(), dtype=int64)
+# tf.Tensor(5, shape=(), dtype=int64)
+# tf.Tensor(8, shape=(), dtype=int64)
+# tf.Tensor(9, shape=(), dtype=int64)
+# tf.Tensor(5, shape=(), dtype=int64)
+# tf.Tensor(6, shape=(), dtype=int64)
+# tf.Tensor(2, shape=(), dtype=int64)
+# tf.Tensor(3, shape=(), dtype=int64)
+# tf.Tensor(9, shape=(), dtype=int64)
+# tf.Tensor(0, shape=(), dtype=int64)
+# tf.Tensor(6, shape=(), dtype=int64)
+# tf.Tensor(7, shape=(), dtype=int64)
 
 
 # 字典和矩阵
@@ -72,6 +107,12 @@ dataset3 = tf.data.Dataset.from_tensor_slices((x, y))
 for item_x, item_y in dataset3:
     print(item_x, item_y)
     print(item_x.numpy(), item_y.numpy())
+# tf.Tensor([1 2], shape=(2,), dtype=int64) tf.Tensor(b'cat', shape=(), dtype=string)
+# [1 2] b'cat'
+# tf.Tensor([3 4], shape=(2,), dtype=int64) tf.Tensor(b'dog', shape=(), dtype=string)
+# [3 4] b'dog'
+# tf.Tensor([5 6], shape=(2,), dtype=int64) tf.Tensor(b'fox', shape=(), dtype=string)
+# [5 6] b'fox'
 
 
 dataset4 = tf.data.Dataset.from_tensor_slices({"feature": x, "label": y})
@@ -90,7 +131,7 @@ for item in dataset4:
 """
 
 
-path = r"C:\Users\xiexiaoxuan\PycharmProjects\ml_project\tf2\note\generate_csv"
+path = r"/tf2.0/tf2/note/generate_csv"
 train_files = []
 for file in os.listdir(path):
     if "train" in file:

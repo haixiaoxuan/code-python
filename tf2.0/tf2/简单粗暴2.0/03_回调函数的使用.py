@@ -23,6 +23,7 @@ logdir = os.path.join("callbacks")
 if not os.path.exists(logdir):
     os.mkdir(logdir)
 output_model_file = os.path.join(logdir, "checkpoint_fashion_mnist.h5")
+
 call_backs = [
     keras.callbacks.TensorBoard(logdir),
     keras.callbacks.ModelCheckpoint(output_model_file, save_best_only=True),    # 保存最好的模型，否则保存最新的模型

@@ -52,7 +52,7 @@ print(cube(tf.constant([3])))
 print(cube([2]))
 
 
-# 将 tf.function 标注的函数转变为可导出的save_model 函数， 需要使用 input_signature 限定
+# 将 tf.function 标注的函数转变为可导出的 save_model 函数， 需要使用 input_signature 限定
 cube_concrete = cube.get_concrete_function(tf.TensorSpec([None], tf.int32))
 print(cube_concrete)
 print(cube_concrete.graph)
