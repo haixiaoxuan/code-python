@@ -38,7 +38,10 @@ import numpy as np
         eval_metric     评估指标(mse|mae|...)
         seed
     
-
+        
+        # 调整xgb线程数，默认为CPU核数
+        import os
+        os.environ['OMP_NUM_THREADS'] = "1"
 """
 
 
