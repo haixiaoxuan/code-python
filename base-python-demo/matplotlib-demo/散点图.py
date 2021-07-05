@@ -15,10 +15,11 @@ def test():
     color = np.random.random(100)
     size = np.random.random(100) * 100
 
-    # marker 表示点的形状 alpha表示透明度
+    # marker 表示点的形状
+    # alpha表示透明度
     plt.scatter(x, y, c=color, s=size, alpha=0.4, marker="o")
 
-    plt.colorbar()  # 显示色彩条状图
+    # plt.colorbar()  # 显示色彩条状图
     plt.show()
 
 
@@ -40,7 +41,7 @@ def test2():
 
 
 def test3():
-    """ 生成不同颜色的散点 """
+    """ 生成不同颜色的散点(相同label颜色相同) """
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([2, 3, 4, 5, 6])
     label = np.array([0, 0, -1, -1, 2])
@@ -52,9 +53,30 @@ def test3():
 
 def test4():
     """ 第二种生成不同颜色的方案 """
-    clrs = plt.cm.Spectral(np.linspace(0, 0.8, 3))
-    for index, clr in enumerate(clrs):
-        plt.scatter(index, index, c=clr)
+    N = 50
+    x = np.linspace(0., 10., N)
+    y = np.sin(x) ** 2 + np.cos(x)
+
+    # plt.figure()
+    # label 为图右上角标签， 一般与 plt.legend() 连用
+    plt.scatter(x, y, s=15, label=r"$y = sin^2(x) + cos(x)$")
+    plt.legend()
+
+    # 使得 x,y 轴比例尺相同
+    plt.axis('equal')
+
+    # 为坐标轴添加标签
+    plt.xlabel(r'$x$ (rad)')
+    plt.ylabel(r'$y$')
+
+    # 更改图片尺寸
+    plt.figure(figsize=(7, 7))
+
+    from matplotlib.ticker import MultipleLocator
+    ax = plt.gca()
+    ax.xaxis.set_minor_locator(MultipleLocator(10))
+    ax.yaxis.set_minor_locator(MultipleLocator(10))
+
     plt.show()
 
 
