@@ -14,3 +14,13 @@ import numpy as np
 """
 
 model = xgb.XGBClassifier(max_depth=10)
+
+
+
+# watchlist = [(xg_train, 'train'), (xg_test, 'test')]
+# num_round = 500
+# bst = xgb.train(param, xg_train, num_round, watchlist, callbacks=[wandb.xgboost.wandb_callback()])
+
+"""
+    watchlist 可以实现边训练边评估
+"""
