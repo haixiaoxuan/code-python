@@ -2,7 +2,7 @@ import gym
 import tensorflow as tf
 import numpy as np
 
-GAMMA = 0.95  # discount factor
+GAMMA = 0.95                # discount factor
 LEARNING_RATE = 0.01
 
 EPSILON = 0.01              # final value of epsilon
@@ -13,6 +13,7 @@ BATCH_SIZE = 32             # size of minibatch
 ENV_NAME = 'CartPole-v0'
 EPISODE = 3000  # Episode limitation
 STEP = 3000  # Step limitation in an episode
+
 TEST = 10  # The number of experiment test every 100 episode
 
 
@@ -43,6 +44,8 @@ class Actor():
 
         h_layer = tf.nn.relu(tf.matmul(self.state_input, W1) + b1)
         self.softmax_input = tf.matmul(h_layer, W2) + b2
+
+        # 所有动作概率
         self.all_act_prob = tf.nn.softmax(self.softmax_input, name='act_prob')
 
         self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(logits=self.softmax_input, labels=self.tf_acts)

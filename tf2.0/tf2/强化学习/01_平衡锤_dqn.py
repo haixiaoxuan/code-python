@@ -7,17 +7,13 @@ from collections import deque
 
 """
     https://tf.wiki/zh/basic/models.html
-    
     DQN 平衡锤
-    
-    我们的任务就是训练出一个模型，能够根据当前的状态预测出应该进行的一个好的动作。粗略地说，一个好的动作应当能够最大化整个游戏过程中获得的奖励之和，
-    这也是强化学习的目标。以 CartPole 游戏为例，我们的目标是希望做出合适的动作使得杆一直不倒，即游戏交互的回合数尽可能地多。
-    而回合每进行一次，我们都会获得一个小的正奖励，回合数越多则累积的奖励值也越高。因此，我们最大化游戏过程中的奖励之和与我们的最终目标是一致的
 """
 
-# gym 调用方法如下
-env = gym.make('CartPole-v1')       # 实例化一个游戏环境，参数为游戏名称
+env = gym.make('CartPole-v1')
 state = env.reset()                 # 初始化环境，获得初始状态
+print(env.action_space.sample())
+print(state)
 # while True:
 #     env.render()                    # 对当前帧进行渲染，绘图到屏幕
 #     action = model.predict(state)   # 假设我们有一个训练好的模型，能够通过当前状态预测出这时应该进行的动作
@@ -26,14 +22,17 @@ state = env.reset()                 # 初始化环境，获得初始状态
 #         break
 
 
-num_episodes = 500              # 游戏训练的总episode数量
+num_episodes = 50000            # 游戏训练的总episode数量
 num_exploration_episodes = 100  # 探索过程所占的episode数量
-max_len_episode = 1000          # 每个episode的最大回合数
-batch_size = 32                 # 批次大小
+max_len_episode = 1000000       # 每个episode的最大回合数
+batch_size = 256                # 批次大小
 learning_rate = 1e-3            # 学习率
-gamma = 1.                      # 折扣因子
+gamma = 1.                      # 奖励折扣因子
+
 initial_epsilon = 1.            # 探索起始时的探索率
 final_epsilon = 0.01            # 探索终止时的探索率
+
+pool_size = 10000               # 经验回放池大小
 
 
 class QNetwork(tf.keras.Model):
@@ -55,24 +54,24 @@ class QNetwork(tf.keras.Model):
 
 
 if __name__ == '__main__':
-    env = gym.make('CartPole-v1')       # 实例化一个游戏环境，参数为游戏名称
+    env = gym.make('CartPole-v1')
 
     model = QNetwork()
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    replay_buffer = deque(maxlen=10000)     # 使用一个 deque 作为 Q Learning 的经验回放池
+    replay_buffer = deque(maxlen=pool_size)     # 使用一个 deque 作为 Q Learning 的经验回放池
 
     epsilon = initial_epsilon
 
     # 每场游戏
     for episode_id in range(num_episodes):
-        state = env.reset()             # 初始化环境，获得初始状态
+        state = env.reset()
         epsilon = max(                  # 计算当前探索率, epsilon 随着场数的增加逐渐减小
             initial_epsilon * (num_exploration_episodes - episode_id) / num_exploration_episodes,
             final_epsilon)
 
         # 每个操作
         for t in range(max_len_episode):
-            env.render()                                # 对当前帧进行渲染，绘图到屏幕
+            # env.render()                                # 对当前帧进行渲染，绘图到屏幕
 
             # 确定 action （随机|模型产生）
             if random.random() < epsilon:               # epsilon-greedy 探索策略，以 epsilon 的概率选择随机动作

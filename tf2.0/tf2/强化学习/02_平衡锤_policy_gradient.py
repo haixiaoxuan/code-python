@@ -35,9 +35,9 @@ class PolicyGradient():
         b1 = self.bias_variable([20])
         W2 = self.weight_variable([20, self.action_dim])
         b2 = self.bias_variable([self.action_dim])
+
         # input layer
         self.state_input = tf.placeholder("float", [None, self.state_dim])
-
         self.tf_acts = tf.placeholder(tf.int32, [None, ], name="actions_num")       # action
         self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value")     # discount reword
 
@@ -65,7 +65,7 @@ class PolicyGradient():
         return tf.Variable(initial)
 
     def choose_action(self, observation):
-        # 选择行为
+        # 根据输出概率选择最佳行为
         prob_weights = self.session.run(self.all_act_prob, feed_dict={self.state_input: observation[np.newaxis, :]})
         # 根据概率分布随机选择行为返回
         action = np.random.choice(range(prob_weights.shape[1]), p=prob_weights.ravel())
@@ -78,7 +78,8 @@ class PolicyGradient():
         self.ep_rs.append(r)
 
     def learn(self):
-        discounted_ep_rs = np.zeros_like(self.ep_rs)
+        # 积累够一个 episode 开始训练
+        discounted_ep_rs = np.zeros_like(self.ep_rs)        # 反向折扣奖励
         running_add = 0
         # 从最后一步奖励向前更新
         for t in reversed(range(0, len(self.ep_rs))):
@@ -106,10 +107,9 @@ def main():
     agent = PolicyGradient(env)
 
     for episode in range(EPISODE):
-        # initialize task
         state = env.reset()
 
-        # Train
+        # Train (循环直到一局游戏结束)
         for step in range(STEP):
             action = agent.choose_action(state)  # e-greedy action for train
 
@@ -139,5 +139,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    import pandas as pd
-    pd.DataFrame().to_json()

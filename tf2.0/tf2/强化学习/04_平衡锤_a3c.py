@@ -14,10 +14,13 @@ N_WORKERS = 3       # worker数量
 
 # 训练局数
 MAX_GLOBAL_EP = 3000
+
 # 区分worker网络名称
 GLOBAL_NET_SCOPE = 'Global_Net'
+
 # 更新 global model
 UPDATE_GLOBAL_ITER = 100
+
 # 折扣系数
 GAMMA = 0.9
 ENTROPY_BETA = 0.001
@@ -25,10 +28,11 @@ ENTROPY_BETA = 0.001
 LR_A = 0.001  # learning rate for actor
 LR_C = 0.001  # learning rate for critic
 
+STEP = 3000     # Step limitation in an episode
+TEST = 10       # The number of experiment test every 100 episode
+
 GLOBAL_RUNNING_R = []
 GLOBAL_EP = 0
-STEP = 3000  # Step limitation in an episode
-TEST = 10  # The number of experiment test every 100 episode
 
 env = gym.make(GAME)
 # 状态 维度
@@ -45,15 +49,15 @@ class ACNet(object):
             with tf.variable_scope(scope):
                 # state
                 self.s = tf.placeholder(tf.float32, [None, N_S], 'S')
-                # actor_params critic_params
+                # actor_params critic_params, 获取两个网络的参数
                 self.a_params, self.c_params = self._build_net(scope)[-2:]
 
         else:
             # local net, calculate losses
             with tf.variable_scope(scope):
-                self.s = tf.placeholder(tf.float32, [None, N_S], 'S')
-                self.a_his = tf.placeholder(tf.int32, [None, ], 'A')
-                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')
+                self.s = tf.placeholder(tf.float32, [None, N_S], 'S')               # state
+                self.a_his = tf.placeholder(tf.int32, [None, ], 'A')                # action
+                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')    # td_error
 
                 # 获取 actor critic 网络输出以及网络参数
                 self.a_prob, self.v, self.a_params, self.c_params = self._build_net(scope)
@@ -93,6 +97,7 @@ class ACNet(object):
         with tf.variable_scope('actor'):
             l_a = tf.layers.dense(self.s, 200, tf.nn.relu6, kernel_initializer=w_init, name='la')
             a_prob = tf.layers.dense(l_a, N_A, tf.nn.softmax, kernel_initializer=w_init, name='ap')
+
         with tf.variable_scope('critic'):
             l_c = tf.layers.dense(self.s, 100, tf.nn.relu6, kernel_initializer=w_init, name='lc')
             v = tf.layers.dense(l_c, 1, kernel_initializer=w_init, name='v')  # state value
