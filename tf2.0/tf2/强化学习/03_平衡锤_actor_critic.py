@@ -12,9 +12,9 @@ BATCH_SIZE = 32             # size of minibatch
 
 ENV_NAME = 'CartPole-v0'
 EPISODE = 3000  # Episode limitation
-STEP = 3000  # Step limitation in an episode
+STEP = 3000     # Step limitation in an episode
 
-TEST = 10  # The number of experiment test every 100 episode
+TEST = 100      # The number of experiment test every 100 episode
 
 
 class Actor():
@@ -38,9 +38,9 @@ class Actor():
         b2 = self.bias_variable([self.action_dim])
 
         # input layer
-        self.state_input = tf.placeholder("float", [None, self.state_dim])
-        self.tf_acts = tf.placeholder(tf.int32, [None, 2], name="actions_num")
-        self.td_error = tf.placeholder(tf.float32, None, "td_error")  # TD_error, 由 critic 提供
+        self.state_input = tf.placeholder("float", [None, self.state_dim])          # state
+        self.tf_acts = tf.placeholder(tf.int32, [None, 2], name="actions_num")      # action
+        self.td_error = tf.placeholder(tf.float32, None, "td_error")                # TD_error, 由 critic 提供
 
         h_layer = tf.nn.relu(tf.matmul(self.state_input, W1) + b1)
         self.softmax_input = tf.matmul(h_layer, W2) + b2

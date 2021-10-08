@@ -9,20 +9,19 @@ LEARNING_RATE = 0.01    # 学习率
 ENV_NAME = 'CartPole-v0'    # 游戏名称
 EPISODE = 3000              # Episode limitation
 STEP = 3000                 # Step limitation in an episode
-TEST = 10                   # The number of experiment test every 100 episode
+TEST = 100                  # The number of experiment test every 100 episode
 
 
 class PolicyGradient():
     def __init__(self, env):
-        # init some parameters
-        self.time_step = 0
-        # 状态维度
+        # state 维度
         self.state_dim = env.observation_space.shape[0]
         # action 维度
         self.action_dim = env.action_space.n
 
         # state action reword
         self.ep_obs, self.ep_as, self.ep_rs = [], [], []
+
         self.create_softmax_network()
 
         # Init session
@@ -37,7 +36,7 @@ class PolicyGradient():
         b2 = self.bias_variable([self.action_dim])
 
         # input layer
-        self.state_input = tf.placeholder("float", [None, self.state_dim])
+        self.state_input = tf.placeholder("float", [None, self.state_dim])          # state
         self.tf_acts = tf.placeholder(tf.int32, [None, ], name="actions_num")       # action
         self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value")     # discount reword
 
@@ -47,6 +46,7 @@ class PolicyGradient():
         # 输出所有行为的概率
         self.all_act_prob = tf.nn.softmax(self.softmax_input, name='act_prob')
 
+        # TODO
         # 损失函数: 交叉熵损失函数和状态价值函数的乘机
         self.neg_log_prob = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.softmax_input, labels=self.tf_acts)
         self.loss = tf.reduce_mean(self.neg_log_prob * self.tf_vt)  # reward guided loss
