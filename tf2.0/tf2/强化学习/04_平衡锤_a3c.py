@@ -34,6 +34,7 @@ TEST = 10       # The number of experiment test every 100 episode
 GLOBAL_RUNNING_R = []
 GLOBAL_EP = 0
 
+
 env = gym.make(GAME)
 # 状态 维度
 N_S = env.observation_space.shape[0]
@@ -42,6 +43,7 @@ N_A = env.action_space.n
 
 
 class ACNet(object):
+    """ ActorCritic 网络 """
     def __init__(self, scope, globalAC=None):
 
         if scope == GLOBAL_NET_SCOPE:
@@ -64,11 +66,12 @@ class ACNet(object):
 
                 td = tf.subtract(self.v_target, self.v, name='TD_error')
                 with tf.name_scope('c_loss'):
-                    # critic loss
+                    # critic loss (最小化 TD_error)
                     self.c_loss = tf.reduce_mean(tf.square(td))
 
                 with tf.name_scope('a_loss'):
                     # actor loss
+                    # TODO
                     log_prob = tf.reduce_sum(tf.log(self.a_prob + 1e-5) * tf.one_hot(self.a_his, N_A, dtype=tf.float32),
                                              axis=1, keep_dims=True)
                     exp_v = log_prob * tf.stop_gradient(td)
