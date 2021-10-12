@@ -109,20 +109,17 @@ def get_one_hot(targets, nb_classes):
 
 def train_memory_batch(memory, model):
     mini_batch = random.sample(memory, params.get("batch_size"))
-    # Create empty arrays to load our minibatch into
-    # These objects have multiple values hence need defined shapes
     state = np.zeros((params.get("batch_size"), Input_shape[0], Input_shape[1], Input_shape[2]))
     next_state = np.zeros((params.get("batch_size"), Input_shape[0], Input_shape[1], Input_shape[2]))
-    # These objects have a single value, so we can just create a list that we append later
     action = []
     reward = []
+
     # Create an array that will carry what the target q values will be - based on our target networks weights
     target_q = np.zeros((params.get("batch_size"),))
 
     # Fill up our arrays with our minibatch
     for id, val in enumerate(mini_batch):
         state[id] = val[0]
-        print(val[0].shape)
         next_state[id] = val[3]
         action.append(val[1])
         reward.append(val[2])
@@ -149,8 +146,6 @@ def train_memory_batch(memory, model):
     # s,a -> q(s,a|w)
     h = model.fit([state, action_one_hot], target_one_hot, epochs=1, batch_size=params.get("batch_size"), verbose=0)
 
-    # Return the loss
-    # Its just for monitoring progress
     return h.history["loss"][0]
 
 
@@ -228,6 +223,7 @@ def train():
                 if global_step % params.get("update_target_model_steps") == 0:
                     model_target.set_weights(model.get_weights())
                     print("UPDATING TARGET WEIGHTS")
+
             state_history = state_history_w_next
 
             # print("step: ", global_step)
@@ -255,15 +251,6 @@ def train():
                     file_name = "pong_model_{}.h5".format(episode_number)
                     model_path = os.path.join(params.get("train_dir"), file_name)
                     model.save(model_path)
-
-                # Add loss and score  data to TensorBoard
-                # loss_summary = tf.Summary(
-                #     value=[tf.Summary.Value(tag="loss", simple_value=loss / float(step))])
-                # file_writer.add_summary(loss_summary, global_step=episode_number)
-                #
-                # score_summary = tf.Summary(
-                #     value=[tf.Summary.Value(tag="score", simple_value=score)])
-                # file_writer.add_summary(score_summary, global_step=episode_number)
 
                 with file_writer.as_default():
                     tf.summary.scalar("loss", loss / float(step), episode_number)
