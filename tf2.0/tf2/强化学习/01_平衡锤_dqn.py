@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
         # 每个操作
         for t in range(max_len_episode):
-            # env.render()                                # 对当前帧进行渲染，绘图到屏幕
+            env.render()                                # 对当前帧进行渲染，绘图到屏幕
 
             # 确定 action （随机|模型产生）
             if random.random() < epsilon:               # epsilon-greedy 探索策略，以 epsilon 的概率选择随机动作
