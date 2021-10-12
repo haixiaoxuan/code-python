@@ -7,23 +7,24 @@ from collections import deque
 from skimage.color import rgb2gray
 from skimage.transform import resize
 import os
+import time
 
 
 params = {
     "optimiser_learning_rate": 0.00025,
     "observe_step_num": 100000,
-    "batch_size": 32,
+    "batch_size": 128,
     
     "initial_epsilon": 1,
     "epsilon_anneal_num": 500000,
     "final_epsilon": 0.01,
     
     "gamma": 0.99,
-    "replay_memory": 400000,    # 40w=20GB
-    "n_episodes": 100000,
+    "replay_memory": 400000,     # 40w=20GB
+    "n_episodes": 100000,       # 训练总局数
     "no_op_steps": 2,
     "render": True,
-    "update_target_model_steps": 100000,
+    "update_target_model_steps": 100000,        # 每隔多少步，target network 同步一次网络权重
     "train_dir": "log"
 }
 
@@ -91,6 +92,7 @@ def atari_model_target():
 
 
 def get_action(history, epsilon, step, model):
+    # observe_step_num 都属于探索阶段
     if np.random.rand() <= epsilon or step <= params.get("observe_step_num"):
         return random.randrange(Action_size)
     else:
@@ -104,6 +106,7 @@ def store_memory(memory, history, action, reward, next_history):
 
 
 def get_one_hot(targets, nb_classes):
+    # 对 [1, 2, 1, 2] 这样的target进行编码，nb_classes为类别数
     return np.eye(nb_classes)[np.array(targets).reshape(-1)]
 
 
@@ -124,22 +127,19 @@ def train_memory_batch(memory, model):
         action.append(val[1])
         reward.append(val[2])
 
-    # We want the model to predict the q value for all actions hence:
+    # 对所有的action预测Q值
     actions_mask = np.ones((params.get("batch_size"), Action_size))
-    # Get the target model to predict the q values for all actions
     next_q_values = model.predict([next_state, actions_mask])
 
     # Fill out target q values based on the max q value in the next state
     for i in range(params.get("batch_size")):
-        # Standard discounted reward formula
-        # q(s,a) = r + discount * cumulative future rewards
+        # TD_target
         target_q[i] = reward[i] + params.get("gamma") * np.amax(next_q_values[i])
 
-    # Convert all the actions into one hot vectors
     action_one_hot = get_one_hot(action, Action_size)
     # Apply one hot mask onto target vector
     # This results in a vector that has the max q value in the position corresponding to the action
-    target_one_hot = action_one_hot * target_q[:, None]
+    target_one_hot = action_one_hot * target_q[:, None]     # (128, 3)
 
     # Then we fit the model
     # We map the state and the action from the memory bank to the q value of that state action pair
@@ -157,9 +157,7 @@ def train():
     # Start episode counter
     episode_number = 0
 
-    # Set epsilon
     epsilon = params.get("initial_epsilon")
-    # Define epsilon decay
     epsilon_decay = (params.get("initial_epsilon") - params.get("final_epsilon")) / params.get("epsilon_anneal_num")
 
     # Start global step
@@ -179,6 +177,8 @@ def train():
         score = 0
         loss = 0.0
 
+        start_time = time.time()
+
         # Initialise environment
         observation = env.reset()
 
@@ -197,9 +197,11 @@ def train():
             if params.get("render"):
                 env.render()
 
+            # 使用target_model获取action
             action = get_action(state_history, epsilon, global_step, model_target)
             real_action = action + 1
 
+            # 在观测步数之内，会一直进行探索。
             if global_step > params.get("observe_step_num") and epsilon > params.get("final_epsilon"):
                 epsilon -= epsilon_decay
 
@@ -215,38 +217,45 @@ def train():
             # Save the (s, a, r, s") set to memory
             store_memory(memory, state_history, action, reward, state_history_w_next)
 
-            # Train model
-            # Check if we are done observing
+            # 观测结束则开始训练
             if global_step > params.get("observe_step_num"):
                 loss = loss + train_memory_batch(memory, model)
-                # Check if we are ready to update target model with the model we have been training
+                # 更新target_model
                 if global_step % params.get("update_target_model_steps") == 0:
                     model_target.set_weights(model.get_weights())
                     print("UPDATING TARGET WEIGHTS")
 
             state_history = state_history_w_next
 
-            # print("step: ", global_step)
             global_step += 1
             step += 1
 
-            # Check if episode is over - lost all lives in breakout
+            # game over
             if done:
-                # Check if we are still observing
                 if global_step <= params.get("observe_step_num"):
+                    # 观测阶段
                     current_position = "observe"
-                # Check if we are still annealing epsilon
+
                 elif params.get("observe_step_num") < global_step <= params.get("observe_step_num") + params.get("epsilon_anneal_num"):
+                    # 使用 epsilon 探索阶段
                     current_position = "explore"
                 else:
                     current_position = "train"
-                # Print status
-                print(
-                    "current position: {}, epsilon: {} , episode: {}, score: {}, global_step: {}, avg loss: {}, step: {}, memory length: {}"
-                        .format(current_position, epsilon, episode_number, score, global_step, loss / float(step), step,
-                                len(memory)))
 
-                # Save model every 100 episodes and final episode
+                spend_time = round(time.time() - start_time, 2)
+
+                print("current stage: {}, "
+                      "epsilon: {} , "
+                      "episode: {}, "
+                      "score: {}, "
+                      "global_step: {}, "
+                      "avg loss: {}, "
+                      "step: {}, "
+                      "memory length: {}, "
+                      "spend_time: {} ".format(current_position, epsilon, episode_number, score, global_step,
+                                                 loss / float(step), step, len(memory), spend_time))
+
+                # Save model
                 if episode_number % 100 == 0 or (episode_number + 1) == params.get("n_episodes"):
                     file_name = "pong_model_{}.h5".format(episode_number)
                     model_path = os.path.join(params.get("train_dir"), file_name)
@@ -255,8 +264,13 @@ def train():
                 with file_writer.as_default():
                     tf.summary.scalar("loss", loss / float(step), episode_number)
                     tf.summary.scalar("score", score, episode_number)
+                    tf.summary.scalar("spend_time", spend_time, episode_number)
 
-                # Increment episode number
+                if episode_number % 100 == 0:
+                    params["render"] = True
+                else:
+                    params["render"] = False
+
                 episode_number += 1
 
     file_writer.close()
