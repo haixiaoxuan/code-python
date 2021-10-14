@@ -102,6 +102,8 @@ if __name__ == '__main__':
                 batch_action = np.array(batch_action, dtype=np.int32)
 
                 q_value = model(batch_next_state)
+
+                # 游戏结束不需要结算后面的reward
                 y = batch_reward + (gamma * tf.reduce_max(q_value, axis=1)) * (1 - batch_done)
                 with tf.GradientTape() as tape:
                     loss = tf.keras.losses.mean_squared_error(

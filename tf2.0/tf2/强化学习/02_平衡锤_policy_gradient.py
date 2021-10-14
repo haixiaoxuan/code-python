@@ -1,12 +1,13 @@
 import gym
 import tensorflow as tf
+import tensorflow.keras as keras
 import numpy as np
 
 
-GAMMA = 0.95            # 折扣系数
-LEARNING_RATE = 0.01    # 学习率
+GAMMA = 0.95
+LEARNING_RATE = 0.01
 
-ENV_NAME = 'CartPole-v0'    # 游戏名称
+ENV_NAME = 'CartPole-v0'
 EPISODE = 3000              # Episode limitation
 STEP = 3000                 # Step limitation in an episode
 TEST = 100                  # The number of experiment test every 100 episode
@@ -14,9 +15,7 @@ TEST = 100                  # The number of experiment test every 100 episode
 
 class PolicyGradient():
     def __init__(self, env):
-        # state 维度
         self.state_dim = env.observation_space.shape[0]
-        # action 维度
         self.action_dim = env.action_space.n
 
         # state action reword
@@ -24,16 +23,22 @@ class PolicyGradient():
 
         self.create_softmax_network()
 
-        # Init session
-        self.session = tf.InteractiveSession()
-        self.session.run(tf.global_variables_initializer())
-
     def create_softmax_network(self):
-        # network weights
-        W1 = self.weight_variable([self.state_dim, 20])
-        b1 = self.bias_variable([20])
-        W2 = self.weight_variable([20, self.action_dim])
-        b2 = self.bias_variable([self.action_dim])
+        status = keras.layers.Input(shape=(None, self.state_dim))
+        h1 = keras.layers.Dense(units=24, activation=tf.nn.relu)(status)
+        h2 = keras.layers.Dense(units=self.action_dim, activation=tf.nn.relu)(h1)
+        action_prob = keras.layers.Softmax(h2)
+        model = keras.models.Model(inputs=status, outputs=action_prob)
+
+        model.summary()
+        loss = keras.losses.categorical_crossentropy()
+        optimizer = keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+        model.compile(loss=loss, optimizer=optimizer)
+
+        def loss(y_true, y_pred):
+            neg_log_prob = keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
+            return tf.reduce_mean(neg_log_prob * )
+
 
         # input layer
         self.state_input = tf.placeholder("float", [None, self.state_dim])          # state
@@ -54,6 +59,10 @@ class PolicyGradient():
         # 定义优化器
         self.train_op = tf.train.AdamOptimizer(LEARNING_RATE).minimize(self.loss)
 
+
+    def get_loss(self):
+
+
     def weight_variable(self, shape):
         # 初始化权重w
         initial = tf.truncated_normal(shape)
@@ -72,7 +81,6 @@ class PolicyGradient():
         return action
 
     def store_transition(self, s, a, r):
-        # state action reword
         self.ep_obs.append(s)
         self.ep_as.append(a)
         self.ep_rs.append(r)
