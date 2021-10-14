@@ -8,12 +8,19 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 import os
 import time
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
+
+
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 
 
 params = {
     "optimiser_learning_rate": 0.00025,
     "observe_step_num": 100000,
-    "batch_size": 128,
+    "batch_size": 256,
     
     "initial_epsilon": 1,
     "epsilon_anneal_num": 500000,
