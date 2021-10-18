@@ -1,28 +1,29 @@
 import numpy as np
 import pickle
 import gym
+import time
 
 
-H = 200  # number of hidden layer neurons
+resume = True
+render = False
+
+hidden_unit = 200
 batch_size = 256
 learning_rate = 1e-4
 gamma = 0.99
 decay_rate = 0.99  # decay factor for RMSProp leaky sum of grad^2
 
-resume = False  # resume from previous checkpoint?
-render = False
+input_dim = 80 * 80  # input dimensionality: 80x80 grid
 
-
-D = 80 * 80  # input dimensionality: 80x80 grid
 if resume:
     model = pickle.load(open('save.p', 'rb'))
 else:
     model = {}
-    model['W1'] = np.random.randn(H, D) / np.sqrt(D)  # "Xavier" initialization
-    model['W2'] = np.random.randn(H) / np.sqrt(H)
+    model['W1'] = np.random.randn(hidden_unit, input_dim) / np.sqrt(input_dim)
+    model['W2'] = np.random.randn(hidden_unit) / np.sqrt(hidden_unit)
 
-grad_buffer = {k: np.zeros_like(v) for k, v in model.items()}  # update buffers that add up gradients over a batch
-rmsprop_cache = {k: np.zeros_like(v) for k, v in model.items()}  # rmsprop memory
+grad_buffer = {k: np.zeros_like(v) for k, v in model.items()}
+rmsprop_cache = {k: np.zeros_like(v) for k, v in model.items()}
 
 
 def sigmoid(x):
@@ -31,7 +32,7 @@ def sigmoid(x):
 
 def preprocess(obs):
     """
-        210x160x3 uint8 frame into 6400 (80x80) 1D float vector
+        210x160x3 uint8 frame into 6400 (80x80) input_dim float vector
     """
     obs = obs[35:195]  # crop
     obs = obs[::2, ::2, 0]  # downsample by factor of 2
@@ -61,7 +62,7 @@ def policy_forward(x):
     return p, h  # return probability of taking action 2, and hidden state
 
 
-def policy_backward(eph, epdlogp):
+def policy_backward(eph, epdlogp, epx):
     """ backward pass. (eph is array of intermediate hidden states) """
     dW2 = np.dot(eph.T, epdlogp).ravel()
     dh = np.outer(epdlogp, model['W2'])
@@ -73,68 +74,105 @@ def policy_backward(eph, epdlogp):
 env = gym.make("Pong-v0")
 observation = env.reset()
 
-prev_x = None  # used in computing the difference frame
 
-# status hidden (y-y^) reward
-xs, hs, dlogps, drs = [], [], [], []
-reward_sum = 0
-episode_number = 0
+def train():
+    prev_x = None  # 前一状态
 
-while True:
-    if render:
+    # status hidden_output (y-y^) reward
+    xs, hs, dlogps, drs = [], [], [], []
+    reward_sum = 0
+    episode_number = 0
+
+    while True:
+        if render:
+            env.render()
+
+        cur_x = preprocess(observation)
+        x = cur_x - prev_x if prev_x is not None else np.zeros(input_dim)
+        prev_x = cur_x
+
+        # forward the policy network and sample an action from the returned probability
+        aprob, h = policy_forward(x)
+        action = 2 if np.random.uniform() < aprob else 3
+
+        # step the environment and get new measurements
+        observation, reward, done, info = env.step(action)
+        reward_sum += reward
+
+        xs.append(x)  # state
+        hs.append(h)  # hidden_output
+        y = 1 if action == 2 else 0
+        dlogps.append(y - aprob)
+        drs.append(reward)
+
+        if done:
+            episode_number += 1
+
+            # stack together all inputs, hidden states, action gradients, and rewards for this episode
+            epx = np.vstack(xs)
+            eph = np.vstack(hs)
+            epdlogp = np.vstack(dlogps)
+            epr = np.vstack(drs)
+
+            xs, hs, dlogps, drs = [], [], [], []  # reset array memory
+
+            # discount reward
+            discounted_epr = discount_rewards(epr)
+            # standardize the rewards to be unit normal (helps control the gradient estimator variance)
+            discounted_epr -= np.mean(discounted_epr)
+            discounted_epr /= np.std(discounted_epr)
+
+            # TODO
+            # modulate the gradient with advantage (PG magic happens right here.)
+            epdlogp *= discounted_epr
+
+            grad = policy_backward(eph, epdlogp, epx)
+            for k in model:
+                grad_buffer[k] += grad[k]  # accumulate grad over batch
+
+            # perform rmsprop parameter update every batch_size episodes
+            if episode_number % batch_size == 0:
+                for k, v in model.items():
+                    g = grad_buffer[k]  # gradient
+
+                    rmsprop_cache[k] = decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
+                    model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
+
+                    # reset batch gradient buffer
+                    grad_buffer[k] = np.zeros_like(v)
+
+            print('resetting env. episode %d, reward total was %d.' % (episode_number, reward_sum))
+
+            if episode_number % 100 == 0:
+                pickle.dump(model, open('save.p', 'wb'))
+            reward_sum = 0
+            observation = env.reset()
+            prev_x = None
+
+
+def test():
+    env = gym.make("Pong-v0")
+    observation = env.reset()
+    prev_x = None
+    reward_sum = 0
+    while True:
+        time.sleep(0.005)
         env.render()
+        cur_x = preprocess(observation)
+        x = cur_x - prev_x if prev_x is not None else np.zeros(input_dim)
+        prev_x = cur_x
 
-    cur_x = preprocess(observation)
-    x = cur_x - prev_x if prev_x is not None else np.zeros(D)
-    prev_x = cur_x
+        aprob, h = policy_forward(x)
+        action = 2 if np.random.uniform() < aprob else 3
 
-    # forward the policy network and sample an action from the returned probability
-    aprob, h = policy_forward(x)
-    action = 2 if np.random.uniform() < aprob else 3
+        observation, reward, done, info = env.step(action)
+        reward_sum += reward
+        if done:
+            print("total_reward", reward_sum)
+            break
 
-    # step the environment and get new measurements
-    observation, reward, done, info = env.step(action)
-    reward_sum += reward
 
-    xs.append(x)  # observation
-    hs.append(h)  # hidden state
-    y = 1 if action == 2 else 0
-    dlogps.append(y - aprob)
-    drs.append(reward)
+if __name__ == "__main__":
+    test()
 
-    if done:
-        episode_number += 1
 
-        # stack together all inputs, hidden states, action gradients, and rewards for this episode
-        epx = np.vstack(xs)
-        eph = np.vstack(hs)
-        epdlogp = np.vstack(dlogps)
-        epr = np.vstack(drs)
-
-        xs, hs, dlogps, drs = [], [], [], []  # reset array memory
-
-        discounted_epr = discount_rewards(epr)
-        # standardize the rewards to be unit normal (helps control the gradient estimator variance)
-        discounted_epr -= np.mean(discounted_epr)
-        discounted_epr /= np.std(discounted_epr)
-
-        epdlogp *= discounted_epr  # modulate the gradient with advantage (PG magic happens right here.)
-        grad = policy_backward(eph, epdlogp)
-        for k in model:
-            grad_buffer[k] += grad[k]  # accumulate grad over batch
-
-        # perform rmsprop parameter update every batch_size episodes
-        if episode_number % batch_size == 0:
-            for k, v in model.items():
-                g = grad_buffer[k]  # gradient
-                rmsprop_cache[k] = decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
-                model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
-                grad_buffer[k] = np.zeros_like(v)  # reset batch gradient buffer
-
-        print('resetting env. episode %d, reward total was %d.' % (episode_number, reward_sum))
-
-        if episode_number % 100 == 0:
-            pickle.dump(model, open('save.p', 'wb'))
-        reward_sum = 0
-        observation = env.reset()
-        prev_x = None
