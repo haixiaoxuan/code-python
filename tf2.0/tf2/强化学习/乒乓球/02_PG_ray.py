@@ -3,6 +3,7 @@ import os
 import ray
 import time
 import gym
+import pickle
 
 
 H = 200  # The number of hidden layer neurons.
@@ -129,7 +130,8 @@ def zero_grads(grad_buffer):
         grad_buffer[k] = np.zeros_like(v)
 
 
-ray.init()
+# ray.init()
+ray.init(address='ray://localhost:10001')
 
 
 @ray.remote
@@ -166,40 +168,42 @@ class RolloutWorker(object):
         return model.policy_backward(eph, epx, epdlogp), reward_sum
 
 
-iterations = 20
-batch_size = 4
+iterations = 200000     # 迭代次数
+worker_num = 15         # worker数
 model = Model()
-actors = [RolloutWorker.remote() for _ in range(batch_size)]
+actors = [RolloutWorker.remote() for _ in range(worker_num)]
 
-running_reward = None
-# "Xavier" initialization.
-# Update buffers that add up gradients over a batch.
+
 grad_buffer = {k: np.zeros_like(v) for k, v in model.weights.items()}
-# Update the rmsprop memory.
 rmsprop_cache = {k: np.zeros_like(v) for k, v in model.weights.items()}
+
 
 for i in range(1, 1 + iterations):
     model_id = ray.put(model)
-    gradient_ids = []
+    reward_sum_mean = 0
     # Launch tasks to compute gradients from multiple rollouts in parallel.
     start_time = time.time()
     gradient_ids = [
         actor.compute_gradient.remote(model_id) for actor in actors
     ]
-    for batch in range(batch_size):
+    for batch in range(worker_num):
         [grad_id], gradient_ids = ray.wait(gradient_ids)
+
         grad, reward_sum = ray.get(grad_id)
+        reward_sum_mean += reward_sum
         # Accumulate the gradient over batch.
         for k in model.weights:
             grad_buffer[k] += grad[k]
-        running_reward = (reward_sum if running_reward is None else
-                          running_reward * 0.99 + reward_sum * 0.01)
+
     end_time = time.time()
     print("Batch {} computed {} rollouts in {} seconds, "
-          "running mean is {}".format(i, batch_size, end_time - start_time,
-                                      running_reward))
+          "reward_sum is {}".format(i, worker_num, round(end_time - start_time, 2),
+                                    round(reward_sum_mean / worker_num, 2)))
     model.update(grad_buffer, rmsprop_cache, learning_rate, decay_rate)
     zero_grads(grad_buffer)
+
+    if i % 100 == 0:
+        pickle.dump(model.weights, open('save.p', 'wb'))
 
 
 
