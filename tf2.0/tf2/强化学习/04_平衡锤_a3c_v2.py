@@ -1,20 +1,27 @@
+#!/usr/bin/env Python
+# coding=utf-8
+
 import ray
 import gym
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+import time
 
 
 GAMMA = 0.95
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 
 ENV_NAME = 'CartPole-v0'
 
 ENTROPY_BETA = 0.001       # 策略的熵项权重系数
 UPDATE_GLOBAL_ITER = 256
 
+RENDER = False
+
 
 ray.init(address='ray://localhost:10001')
+# ray.init(local_mode=True)
 
 
 @ray.remote
@@ -80,8 +87,8 @@ class ActorCritic():
 
             if total_step % UPDATE_GLOBAL_ITER == 0 or done:
                 if done:
-                    print("total_steps:", episode_step)
-                    v_s_ = 0
+                    # print("total_steps:", episode_step)
+                    v_s_ = 0        # next state reward
                     self.env.reset()
                     episode_step = 0
                 else:
@@ -135,9 +142,32 @@ class ActorCritic():
         self.actor.set_weights(actor_params)
         self.critic.set_weights(critic_params)
 
+    def test(self):
+        while True:
+            step = 0
+            obs = self.env.reset()
+            actor_params, critic_params = self.global_ac.get_params.remote()
+            self.set_params(ray.get(actor_params), ray.get(critic_params))
+
+            while True:
+                if RENDER:
+                    self.env.render()
+                output = self.actor(obs[np.newaxis, :])[0]
+                action = tf.argmax(output).numpy()
+                next_state, reward, done, info = self.env.step(action)
+                step += 1
+                if done:
+                    print("total_step", step)
+                    time.sleep(10)
+                    break
+
 
 if __name__ == '__main__':
     global_ac = ActorCritic.remote()
+    # global_ac.test.remote()
+
+    test = ActorCritic.remote(global_ac)
+    test.test.remote()
 
     workers = [ActorCritic.remote(global_ac) for _ in range(10)]
     ids = [worker.start.remote() for worker in workers]
