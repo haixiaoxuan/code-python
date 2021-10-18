@@ -23,7 +23,7 @@ UPDATE_GLOBAL_ITER = 100
 
 # 折扣系数
 GAMMA = 0.9
-ENTROPY_BETA = 0.001
+ENTROPY_BETA = 0.001       # 策略的熵项权重系数
 
 LR_A = 0.001  # learning rate for actor
 LR_C = 0.001  # learning rate for critic
@@ -59,7 +59,7 @@ class ACNet(object):
             with tf.variable_scope(scope):
                 self.s = tf.placeholder(tf.float32, [None, N_S], 'S')               # state
                 self.a_his = tf.placeholder(tf.int32, [None, ], 'A')                # action
-                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')    # td_error
+                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')    # td_target
 
                 # 获取 actor critic 网络输出以及网络参数
                 self.a_prob, self.v, self.a_params, self.c_params = self._build_net(scope)
@@ -71,10 +71,11 @@ class ACNet(object):
 
                 with tf.name_scope('a_loss'):
                     # actor loss
-                    # TODO
                     log_prob = tf.reduce_sum(tf.log(self.a_prob + 1e-5) * tf.one_hot(self.a_his, N_A, dtype=tf.float32),
                                              axis=1, keep_dims=True)
                     exp_v = log_prob * tf.stop_gradient(td)
+
+                    # 加入策略的熵项，熵值越大不确定性越强，鼓励探索
                     entropy = -tf.reduce_sum(self.a_prob * tf.log(self.a_prob + 1e-5),
                                              axis=1, keep_dims=True)  # encourage exploration
                     self.exp_v = ENTROPY_BETA * entropy + exp_v
