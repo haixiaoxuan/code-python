@@ -6,6 +6,14 @@ import gym
 import pickle
 
 
+"""
+    workers=16:
+        batch=1000, reward=-16
+        batch=2000, reward=-10
+        batch=3000, reward=-4
+"""
+
+
 H = 200  # The number of hidden layer neurons.
 gamma = 0.99  # The discount factor for reward.
 decay_rate = 0.99  # The decay factor for RMSProp leaky sum of grad^2.
@@ -169,7 +177,7 @@ class RolloutWorker(object):
 
 
 iterations = 200000     # 迭代次数
-worker_num = 15         # worker数
+worker_num = 30         # worker数
 model = Model()
 actors = [RolloutWorker.remote() for _ in range(worker_num)]
 
