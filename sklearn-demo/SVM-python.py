@@ -6,6 +6,11 @@ import numpy as np
 """
 
     kernel      rbf|linear      高斯核|线性核
+    C           惩罚参数， 默认是1
+    degree      多项式的维度，默认是3
+    max_iter
+    tol         停止训练的最小误差】
+    decision_function_shape    ovo|ovr
 
 """
 

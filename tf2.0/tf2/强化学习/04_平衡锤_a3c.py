@@ -14,21 +14,26 @@ N_WORKERS = 3       # worker数量
 
 # 训练局数
 MAX_GLOBAL_EP = 3000
+
 # 区分worker网络名称
 GLOBAL_NET_SCOPE = 'Global_Net'
-# 更新 global model
+
+# 更新 global model (每个worker每走多少步对global进行更新)
 UPDATE_GLOBAL_ITER = 100
+
 # 折扣系数
 GAMMA = 0.9
-ENTROPY_BETA = 0.001
+ENTROPY_BETA = 0.001       # 策略的熵项权重系数
 
 LR_A = 0.001  # learning rate for actor
 LR_C = 0.001  # learning rate for critic
 
+STEP = 3000     # Step limitation in an episode
+TEST = 10       # The number of experiment test every 100 episode
+
 GLOBAL_RUNNING_R = []
-GLOBAL_EP = 0
-STEP = 3000  # Step limitation in an episode
-TEST = 10  # The number of experiment test every 100 episode
+GLOBAL_EP = 0       # episode 局数记录
+
 
 env = gym.make(GAME)
 # 状态 维度
@@ -38,6 +43,7 @@ N_A = env.action_space.n
 
 
 class ACNet(object):
+    """ ActorCritic 网络 """
     def __init__(self, scope, globalAC=None):
 
         if scope == GLOBAL_NET_SCOPE:
@@ -45,22 +51,22 @@ class ACNet(object):
             with tf.variable_scope(scope):
                 # state
                 self.s = tf.placeholder(tf.float32, [None, N_S], 'S')
-                # actor_params critic_params
+                # actor_params critic_params, 获取两个网络的参数
                 self.a_params, self.c_params = self._build_net(scope)[-2:]
 
         else:
             # local net, calculate losses
             with tf.variable_scope(scope):
-                self.s = tf.placeholder(tf.float32, [None, N_S], 'S')
-                self.a_his = tf.placeholder(tf.int32, [None, ], 'A')
-                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')
+                self.s = tf.placeholder(tf.float32, [None, N_S], 'S')               # state
+                self.a_his = tf.placeholder(tf.int32, [None, ], 'A')                # action
+                self.v_target = tf.placeholder(tf.float32, [None, 1], 'Vtarget')    # td_target
 
                 # 获取 actor critic 网络输出以及网络参数
                 self.a_prob, self.v, self.a_params, self.c_params = self._build_net(scope)
 
                 td = tf.subtract(self.v_target, self.v, name='TD_error')
                 with tf.name_scope('c_loss'):
-                    # critic loss
+                    # critic loss (最小化 TD_error)
                     self.c_loss = tf.reduce_mean(tf.square(td))
 
                 with tf.name_scope('a_loss'):
@@ -68,6 +74,8 @@ class ACNet(object):
                     log_prob = tf.reduce_sum(tf.log(self.a_prob + 1e-5) * tf.one_hot(self.a_his, N_A, dtype=tf.float32),
                                              axis=1, keep_dims=True)
                     exp_v = log_prob * tf.stop_gradient(td)
+
+                    # 加入策略的熵项，熵值越大不确定性越强，鼓励探索
                     entropy = -tf.reduce_sum(self.a_prob * tf.log(self.a_prob + 1e-5),
                                              axis=1, keep_dims=True)  # encourage exploration
                     self.exp_v = ENTROPY_BETA * entropy + exp_v
@@ -81,9 +89,11 @@ class ACNet(object):
             with tf.name_scope('sync'):
                 # 将梯度更新到参数上
                 with tf.name_scope('pull'):
+                    # 将global参数更新到worker
                     self.pull_a_params_op = [l_p.assign(g_p) for l_p, g_p in zip(self.a_params, globalAC.a_params)]
                     self.pull_c_params_op = [l_p.assign(g_p) for l_p, g_p in zip(self.c_params, globalAC.c_params)]
                 with tf.name_scope('push'):
+                    # 将worker梯度更新到global
                     self.update_a_op = OPT_A.apply_gradients(zip(self.a_grads, globalAC.a_params))
                     self.update_c_op = OPT_C.apply_gradients(zip(self.c_grads, globalAC.c_params))
 
@@ -93,6 +103,7 @@ class ACNet(object):
         with tf.variable_scope('actor'):
             l_a = tf.layers.dense(self.s, 200, tf.nn.relu6, kernel_initializer=w_init, name='la')
             a_prob = tf.layers.dense(l_a, N_A, tf.nn.softmax, kernel_initializer=w_init, name='ap')
+
         with tf.variable_scope('critic'):
             l_c = tf.layers.dense(self.s, 100, tf.nn.relu6, kernel_initializer=w_init, name='lc')
             v = tf.layers.dense(l_c, 1, kernel_initializer=w_init, name='v')  # state value
@@ -123,16 +134,23 @@ class Worker(object):
     def work(self):
         global GLOBAL_RUNNING_R, GLOBAL_EP
         total_step = 1
+
+        # state, action, reward
         buffer_s, buffer_a, buffer_r = [], [], []
+
         while not COORD.should_stop() and GLOBAL_EP < MAX_GLOBAL_EP:
             s = self.env.reset()
+
+            # episode reward（累计奖励）
             ep_r = 0
+
             while True:
                 # if self.name == 'W_0':
                 #     self.env.render()
                 a = self.AC.choose_action(s)
                 s_, r, done, info = self.env.step(a)
-                if done: r = -5
+                if done:
+                    r = -5
                 ep_r += r
                 buffer_s.append(s)
                 buffer_a.append(a)
@@ -143,6 +161,8 @@ class Worker(object):
                         v_s_ = 0  # terminal
                     else:
                         v_s_ = SESS.run(self.AC.v, {self.AC.s: s_[np.newaxis, :]})[0, 0]
+
+                    # 累积折扣回报
                     buffer_v_target = []
                     for r in buffer_r[::-1]:  # reverse buffer r
                         v_s_ = r + GAMMA * v_s_
@@ -183,6 +203,7 @@ if __name__ == "__main__":
     with tf.device("/cpu:0"):
         OPT_A = tf.train.RMSPropOptimizer(LR_A, name='RMSPropA')
         OPT_C = tf.train.RMSPropOptimizer(LR_C, name='RMSPropC')
+
         GLOBAL_AC = ACNet(GLOBAL_NET_SCOPE)  # we only need its params
         workers = []
         # Create worker
@@ -190,7 +211,7 @@ if __name__ == "__main__":
             i_name = 'W_%i' % i  # worker name
             workers.append(Worker(i_name, GLOBAL_AC))
 
-    COORD = tf.train.Coordinator()
+    COORD = tf.train.Coordinator()  # 管理在Session中的多个线程
     SESS.run(tf.global_variables_initializer())
 
     if OUTPUT_GRAPH:

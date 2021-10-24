@@ -1,168 +1,127 @@
 import gym
 import tensorflow as tf
+import tensorflow.keras as keras
 import numpy as np
+import os
 
-GAMMA = 0.95  # discount factor
+
+GAMMA = 0.95
 LEARNING_RATE = 0.01
 
 EPSILON = 0.01              # final value of epsilon
 REPLAY_SIZE = 10000         # experience replay buffer size
-BATCH_SIZE = 32             # size of minibatch
 
 
 ENV_NAME = 'CartPole-v0'
 EPISODE = 3000  # Episode limitation
-STEP = 3000  # Step limitation in an episode
-TEST = 10  # The number of experiment test every 100 episode
+STEP = 3000     # Step limitation in an episode
+
+TEST = 100      # The number of experiment test every 100 episode
+
+render = False
+
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+gpus = tf.config.experimental.list_physical_devices("GPU")
+if len(gpus) > 0:
+    tf.config.experimental.set_memory_growth(gpus[0], True)
 
 
 class Actor():
-    def __init__(self, env, sess):
-        # 状态维度
+    def __init__(self, env):
         self.state_dim = env.observation_space.shape[0]
-        # action 维度
         self.action_dim = env.action_space.n
 
-        self.create_softmax_network()
+        self.model = self.create_network()
+        self.optimizer = keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 
-        # Init session
-        self.session = sess
-        self.session.run(tf.global_variables_initializer())
-
-    def create_softmax_network(self):
-        # network weights
-        W1 = self.weight_variable([self.state_dim, 20])
-        b1 = self.bias_variable([20])
-        W2 = self.weight_variable([20, self.action_dim])
-        b2 = self.bias_variable([self.action_dim])
-
-        # input layer
-        self.state_input = tf.placeholder("float", [None, self.state_dim])
-        self.tf_acts = tf.placeholder(tf.int32, [None, 2], name="actions_num")
-        self.td_error = tf.placeholder(tf.float32, None, "td_error")  # TD_error, 由 critic 提供
-
-        h_layer = tf.nn.relu(tf.matmul(self.state_input, W1) + b1)
-        self.softmax_input = tf.matmul(h_layer, W2) + b2
-        self.all_act_prob = tf.nn.softmax(self.softmax_input, name='act_prob')
-
-        self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(logits=self.softmax_input, labels=self.tf_acts)
-        self.exp = tf.reduce_mean(self.neg_log_prob * self.td_error)
-
-        # 这里需要最大化当前策略的价值，因此需要最大化self.exp,即最小化-self.exp
-        self.train_op = tf.train.AdamOptimizer(LEARNING_RATE).minimize(-self.exp)
-
-    def weight_variable(self, shape):
-        initial = tf.truncated_normal(shape)
-        return tf.Variable(initial)
-
-    def bias_variable(self, shape):
-        initial = tf.constant(0.01, shape=shape)
-        return tf.Variable(initial)
+    def create_network(self):
+        status = keras.layers.Input(shape=self.state_dim)
+        h1 = keras.layers.Dense(units=24, activation=tf.nn.relu)(status)
+        h2 = keras.layers.Dense(units=self.action_dim, activation=tf.nn.relu)(h1)
+        action_prob = keras.layers.Softmax()(h2)
+        model = keras.models.Model(inputs=status, outputs=action_prob)
+        model.summary()
+        return model
 
     def choose_action(self, observation):
-        prob_weights = self.session.run(self.all_act_prob, feed_dict={self.state_input: observation[np.newaxis, :]})
-        action = np.random.choice(range(prob_weights.shape[1]),
-                                  p=prob_weights.ravel())  # select action w.r.t the actions prob
+        prob_weights = self.model(observation[np.newaxis, :])
+        action = np.random.choice(range(prob_weights.shape[1]), p=prob_weights.numpy().ravel())
         return action
 
     def learn(self, state, action, td_error):
-        s = state[np.newaxis, :]
-        one_hot_action = np.zeros(self.action_dim)
-        one_hot_action[action] = 1
-        a = one_hot_action[np.newaxis, :]
-        # train on episode
-        self.session.run(self.train_op, feed_dict={
-            self.state_input: s,
-            self.tf_acts: a,
-            self.td_error: td_error,
-        })
+        td_error = tf.Variable(initial_value=td_error, dtype=tf.float32)
+        var = [td_error, *self.model.variables]
+
+        with tf.GradientTape() as tape:
+            action_prob = self.model(state[np.newaxis, :])
+            neg_log_prob = keras.losses.sparse_categorical_crossentropy(np.array(action), action_prob)
+            loss = -tf.reduce_mean(neg_log_prob * td_error)
+
+        gradients = tape.gradient(loss, var)
+        self.optimizer.apply_gradients(grads_and_vars=zip(gradients, var))
 
 
 class Critic():
-    def __init__(self, env, sess):
+    def __init__(self, env):
         self.epsilon = EPSILON
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.n
 
-        self.create_Q_network()
-        self.create_training_method()
+        self.model = self.create_q_network()
+        self.optimizer = keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 
-        # Init session
-        self.session = sess
-        self.session.run(tf.global_variables_initializer())
+    def create_q_network(self):
+        status = keras.layers.Input(shape=self.state_dim)
+        h1 = keras.layers.Dense(units=24, activation=tf.nn.relu)(status)
+        q_value = keras.layers.Dense(units=1, activation=None)(h1)
+        model = keras.models.Model(inputs=status, outputs=q_value)
+        model.summary()
+        return model
 
-    def create_Q_network(self):
-        # network weights
-        W1q = self.weight_variable([self.state_dim, 20])
-        b1q = self.bias_variable([20])
-        W2q = self.weight_variable([20, 1])
-        b2q = self.bias_variable([1])
-        self.state_input = tf.placeholder(tf.float32, [1, self.state_dim], "state")
-        # hidden layers
-        h_layerq = tf.nn.relu(tf.matmul(self.state_input, W1q) + b1q)
-        # Q Value layer
-        self.Q_value = tf.matmul(h_layerq, W2q) + b2q
-
-    def create_training_method(self):
-        # 定义损失函数和优化器
-        self.next_value = tf.placeholder(tf.float32, [1, 1], "v_next")
-        self.reward = tf.placeholder(tf.float32, None, 'reward')
-
-        with tf.variable_scope('squared_TD_error'):
-            self.td_error = self.reward + GAMMA * self.next_value - self.Q_value
-            self.loss = tf.square(self.td_error)
-        with tf.variable_scope('train'):
-            self.train_op = tf.train.AdamOptimizer(self.epsilon).minimize(self.loss)
-
-    def train_Q_network(self, state, reward, next_state):
+    def train_q_network(self, state, reward, next_state):
         s, s_ = state[np.newaxis, :], next_state[np.newaxis, :]
-        v_ = self.session.run(self.Q_value, {self.state_input: s_})
-        td_error, _ = self.session.run([self.td_error, self.train_op],
-                                       {self.state_input: s, self.next_value: v_, self.reward: reward})
+
+        with tf.GradientTape() as tape:
+            td_error = reward + GAMMA * tf.squeeze(self.model(s_)) - tf.squeeze(self.model(s))
+            loss = tf.square(td_error)
+
+        gradients = tape.gradient(loss, self.model.variables)
+        self.optimizer.apply_gradients(grads_and_vars=zip(gradients, self.model.variables))
         return td_error
-
-    def weight_variable(self, shape):
-        initial = tf.truncated_normal(shape)
-        return tf.Variable(initial)
-
-    def bias_variable(self, shape):
-        initial = tf.constant(0.01, shape=shape)
-        return tf.Variable(initial)
 
 
 def main():
-    # initialize OpenAI Gym env and dqn agent
-    sess = tf.InteractiveSession()
     env = gym.make(ENV_NAME)
-    actor = Actor(env, sess)
-    critic = Critic(env, sess)
+    actor = Actor(env)
+    critic = Critic(env)
 
     for episode in range(EPISODE):
-        # initialize task
         state = env.reset()
-        # Train
+
         for step in range(STEP):
-            action = actor.choose_action(state)  # e-greedy action for train
+            action = actor.choose_action(state)
             next_state, reward, done, _ = env.step(action)
-            td_error = critic.train_Q_network(state, reward, next_state)  # gradient = grad[r + gamma * V(s_) - V(s)]
-            actor.learn(state, action, td_error)  # true_gradient = grad[logPi(s,a) * td_error]
+
+            td_error = critic.train_q_network(state, reward, next_state)
+            actor.learn(state, action, td_error)
             state = next_state
             if done:
                 break
 
         # Test every 100 episodes
-        if episode % 100 == 0:
+        if episode % TEST == 0:
             total_reward = 0
-            for i in range(TEST):
-                state = env.reset()
-                for j in range(STEP):
+            state = env.reset()
+            for _ in range(STEP):
+                if render:
                     env.render()
-                    action = actor.choose_action(state)  # direct action for test
-                    state, reward, done, _ = env.step(action)
-                    total_reward += reward
-                    if done:
-                        break
-            ave_reward = total_reward / TEST
+                action = actor.choose_action(state)  # direct action for test
+                state, reward, done, _ = env.step(action)
+                total_reward += reward
+                if done:
+                    break
+            ave_reward = total_reward
             print('episode: ', episode, 'Evaluation Average Reward:', ave_reward)
 
 

@@ -215,7 +215,7 @@ content
 
         metrics.fbeta_score
         metrics.precision_recall_fscore_support     # 拿到三个指标
-        metrics.classification_report   # 分类报告
+        metrics.classification_report   # 分类报告（精准率，召回率，f1）
         ============================================================
         聚类
         ‘adjusted_rand_score’	metrics.adjusted_rand_score
