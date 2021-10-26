@@ -2,7 +2,6 @@ from nes_py.wrappers import JoypadSpace
 import gym
 from Contra.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, RIGHT_ONLY
 import time
-from retro import make
 
 
 """
@@ -12,7 +11,6 @@ from retro import make
 
 
 env = gym.make('Contra-v0')
-# env = make("Contra-Nes", "Level1")
 env = JoypadSpace(env, RIGHT_ONLY)
 
 print("actions", env.action_space)
