@@ -1,9 +1,10 @@
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import torch
+from multiprocessing import Process
 
 
-writer = SummaryWriter(comment='test_tensorboard')
+writer = SummaryWriter(comment='test_tensorboard', flush_secs=1, max_queue=100)
 
 
 def test1():
@@ -66,11 +67,26 @@ def test5():
     """
 
 
-writer.close()
+def test6():
+    """
+        add_scalar
+        add_scalars
+    """
+    writer = SummaryWriter(comment='test_tensorboard', flush_secs=1, max_queue=100)
+    for x in range(100):
+        writer.add_scalar('y=2x', x * 2, x)
+        writer.add_scalar('y=pow(2, x)', 2 ** x, x)
+        writer.add_scalars('data/scalar_group', {"xsinx": x * np.sin(x), "xcosx": x * np.cos(x), "arctanx": np.arctan(x)}, x)
+        print(x)
 
 
 if __name__ == "__main__":
-    test3()
+    p = Process(target=test6)
+    p.start()
+    p.join()
+    # test6()
+    writer.close()
+
 
 
 
